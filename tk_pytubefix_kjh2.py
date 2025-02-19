@@ -11,7 +11,6 @@
 
 # 배포를 위한 pyinstaller 명령어:
 # pyinstaller --onefile tk_pytubefix_kjh.py
-# pyinstaller --onefile --add-binary "C:\Users\KJH\PycharmProjects\pytubefix\_ffmpeg.exe;." tk_pytubefix_kjh2.py
 # pyinstaller --onefile --add-binary ".\_ffmpeg.exe;." tk_pytubefix_kjh2.py
 
 # 필요한 라이브러리 임포트
@@ -113,6 +112,7 @@ def download_link():
     resolution = combo_resolution.get() # 선택한 해상도 가져옴
     resolution = resolution.split('_')[0] # 해상도만 추출
 
+    # 에러 체크
     if not link:
         status_text.set("Please enter a valid link.")
         return
@@ -120,7 +120,8 @@ def download_link():
         status_text.set("Please select a resolution.")
         return
 
-    audio_filename = sanitize_filename(f'{title}_audio_{resolution}.mp4')
+    # 파일 이름 생성 및 정리
+    audio_filename = sanitize_filename(f'{title}_audio.mp4')
     video_filename = sanitize_filename(f'{title}_video_{resolution}.mp4')
     output_filename = sanitize_filename(f'{title}_{resolution}.mp4')
     mp3_filename = sanitize_filename(f'{title}.mp3')
@@ -131,8 +132,32 @@ def download_link():
             download_video_stream = video_stream[idx]
             break
 
-    # 비디오 파일이 이미 존재한다면 스킵
-    if os.path.exists(video_filename):
+#######################################################################
+
+    # 체크 박스의 비디오 & mp3 모두 언체크
+    if not mp3_generation_var.get() and not video_generation_var.get():
+        status_text.set("Please select either MP3 or Video Generation.")
+        return
+
+    # 체크 박스의 비디오 체크 & mp3 언체크
+    if os.path.exists(output_filename) and not mp3_generation_var.get():
+        status_text.set("video file already exists.")
+        return
+
+    # 체크 박스의 비디오 언체크 & mp3 체크
+    if not video_generation_var.get() and os.path.exists(mp3_filename):
+        status_text.set("mp3 file already exists.")
+        return
+    
+    # 체크 박스의 비디오 체크 & mp3 체크
+    if os.path.exists(output_filename) and os.path.exists(mp3_filename):
+        status_text.set("file already exists.")
+        return
+
+######################################################################
+
+    # 임시 비디오 파일이 이미 존재한다면 스킵
+    if os.path.exists(video_filename) or video_generation_var.get() == 0:
         status_text.set("Video file already exists. Skipping download.")
     else:
         # 프로그레스 바 설정
@@ -142,7 +167,7 @@ def download_link():
         status_text.set("Downloading video...")
         download_video_stream.download(filename=video_filename)
 
-    # 오디오 파일이 이미 존재한다면 스킵
+    # 임시 오디오 파일이 이미 존재한다면 스킵
     if os.path.exists(audio_filename):
         status_text.set("Audio file already exists. Skipping download.")
     else:
@@ -223,22 +248,22 @@ def download_link():
     ffmpeg_command.extend(['-preset', 'fast'])
     ffmpeg_command.extend([output_filename])
 
-    # 만약에 파일이 존재한다면 스킵
-    if os.path.exists(output_filename):
-        status_text.set(f"{output_filename} file already exists. Skipping merge.")
-    else:
-        status_text.set("Merging video and audio...")
-        
-        # run the command
+    status_text.set("Merging video and audio...")
+
+    # run the command
+    if video_generation_var.get():
         subprocess.run(ffmpeg_command, check=True)
-        if mp3_generation_var.get():
-            subprocess.run(mp3_command, check=True)     
-        if delete_downloaded_var.get():
+    if mp3_generation_var.get():
+        subprocess.run(mp3_command, check=True)     
+    if delete_downloaded_var.get():
+        if video_generation_var.get():
             os.remove(video_filename)
             os.remove(audio_filename)
-        status_text.set("Complete merging video and audio...")
-        progress["maximum"] = 0
-        progress["value"] = 0
+        elif mp3_generation_var.get():
+            os.remove(audio_filename)
+    status_text.set("Complete merging video and audio...")
+    progress["maximum"] = 0
+    progress["value"] = 0
 
 def download_button_click():
     try:
@@ -288,7 +313,7 @@ label_link.grid(row=0, column=0, padx=5, pady=10)
 
 # 엔트리 위젯(링크 입력란)
 entry_link = tk.Entry(root, width=45, font=("Arial", 12))
-entry_link.insert(0, "https://www.youtube.com/watch?v=D-QAJJIKf6Q&ab_channel=KJH")  # 기본값 설정
+entry_link.insert(0, "input youtube link, right click to paste popup menu")  # 기본값 설정
 entry_link.bind("<FocusIn>", select_all)
 entry_link.grid(row=0, column=1, padx=0, pady=10)
 
@@ -328,17 +353,23 @@ button_download.grid(row=3, column=2, padx=10, pady=10)
 
 
 
-# 체크 박스 위젯
+# 체크 박스 위젯 (임시파일 삭제 여부 선택)
 delete_downloaded_var = tk.BooleanVar()
-delete_downloaded_var.set(True) # 기본값 설정 (체크 해제 상태)
-check_delete_downloaded = tk.Checkbutton(root, text="임시파일일 삭제", variable=delete_downloaded_var)
+delete_downloaded_var.set(True) # 기본값 설정 (체크 상태)
+check_delete_downloaded = tk.Checkbutton(root, text="임시파일 삭제", variable=delete_downloaded_var)
 check_delete_downloaded.grid(row=4, column=0, padx=10, pady=10) # 체크 박스 배치
 
-# 체크 박스 위젯
+# 체크 박스 위젯 (비디오 생성 여부 선택)
+video_generation_var = tk.BooleanVar()
+video_generation_var.set(True) # 기본값 설정 (체크 상태)
+check_video_downloaded = tk.Checkbutton(root, text="비디오 생성", variable=video_generation_var)
+check_video_downloaded.grid(row=4, column=1, padx=0, pady=10) # 체크 박스 배치
+
+# 체크 박스 위젯 (MP3 생성 여부 선택)
 mp3_generation_var = tk.BooleanVar()
 mp3_generation_var.set(False) # 기본값 설정 (체크 해제 상태)
 check_mp3_generation = tk.Checkbutton(root, text="MP3 생성", variable=mp3_generation_var)
-check_mp3_generation.grid(row=4, column=1, padx=10, pady=10) # 체크 박스 배치
+check_mp3_generation.grid(row=4, column=2, padx=0, pady=10) # 체크 박스 배치
 
 
 
@@ -349,11 +380,6 @@ separator.grid(row=5, columnspan=3, sticky="ew")
 
 
 # 상태 위젯
-# status_text = tk.StringVar()
-# status_text.set("상태")
-# label_status = tk.Label(root, textvariable=status_text, font=("Arial", 12))
-# label_status.grid(row=6, column=0, columnspan=3, pady=5)
-
 status_text = tk.StringVar()
 status_text.set("상태 표시")
 entry_status = tk.Entry(root, textvariable=status_text, width=68,
