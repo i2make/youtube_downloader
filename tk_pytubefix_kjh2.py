@@ -10,7 +10,8 @@
 # & rename ffmpeg.exe to _ffmpeg.exe
 
 # 배포를 위한 pyinstaller 명령어:
-# pyinstaller --onefile tk_pytubefix_kjh.py
+# pyinstaller --add-binary ".\_ffmpeg.exe;." tk_pytubefix_kjh2.py
+# pyinstaller --onefile --add-binary "C:\Users\KJH\PycharmProjects\pytubefix\_ffmpeg.exe;." tk_pytubefix_kjh2.py
 # pyinstaller --onefile --add-binary ".\_ffmpeg.exe;." tk_pytubefix_kjh2.py
 
 # 필요한 라이브러리 임포트
@@ -219,7 +220,12 @@ def download_link():
         '144p': '512k'
     }
     
-    ffmpeg_path = resource_path('_ffmpeg.exe') # for py
+    ffmpeg_path = resource_path('_ffmpeg.exe')
+    text_console.config(state=tk.NORMAL)
+    text_console.insert(tk.END, ffmpeg_path + '\n')
+    text_console.see(tk.END)
+    text_console.config(state=tk.DISABLED)
+
     ffmpeg_command = [ffmpeg_path,
                       '-i', video_filename,
                       '-i', audio_filename,
@@ -233,7 +239,7 @@ def download_link():
     # check ffmpeg hardware acceleration support
     hardware_acceleration = False
     try:
-        result = subprocess.run(['ffmpeg', '-hwaccels'], capture_output=True, text=True, check=True)
+        result = subprocess.run([ffmpeg_path, '-hwaccels'], capture_output=True, text=True, check=True)
         if 'cuda' in result.stdout:
             hardware_acceleration = True
     except subprocess.CalledProcessError as e:
